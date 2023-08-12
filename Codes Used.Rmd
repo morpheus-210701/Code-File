@@ -1,0 +1,579 @@
+---
+title: '[1]'
+output: html_document
+date: "2023-04-22"
+---
+
+```{r}
+#(0422)
+#setwd("~/Desktop/210701/Morpheus/GSE118918_RAW/")
+setwd("C:/Users/user/OneDrive/Documents/QQ Embark _ 2023/R studio data/GSE118918_RAW")
+
+#making seurat objects
+#Mocks
+scrna_data1 <- read.table(
+  gzfile("Mock 1/GSM3351254_NAcc_Mock1.txt.gz"),
+  row.names = 1,
+  header = T)
+seob_mock1 <- CreateSeuratObject(counts=scrna_data1)
+
+scrna_data2 <- read.table(
+  gzfile("Mock 2/GSM3351255_NAcc_Mock2.txt.gz"),
+  row.names = 1,
+  header = T)
+seob_mock2 <- CreateSeuratObject(counts=scrna_data2)
+
+scrna_data3 <- read.table(
+  gzfile("Mock 3/GSM3351256_NAcc_Mock3.txt.gz"),
+  row.names = 1,
+  header = T)
+seob_mock3 <- CreateSeuratObject(counts=scrna_data3)
+
+scrna_data4 <- read.table(
+  gzfile("Mock 4/GSM3351257_NAcc_Mock4.txt.gz"),
+  row.names = 1,
+  header = T)
+seob_mock4 <- CreateSeuratObject(counts=scrna_data4)
+
+#Morphines
+scrna_data5 <- read.table(
+  gzfile("Morphine 1/GSM3351258_NAcc_Morphine1.txt.gz"),
+  row.names = 1,
+  header = T)
+seob_morphine1 <- CreateSeuratObject(counts=scrna_data5)
+
+scrna_data6 <- read.table(
+  gzfile("Morphine 2/GSM3351259_NAcc_Morphine2.txt.gz"),
+  row.names = 1,
+  header = T)
+seob_morphine2 <- CreateSeuratObject(counts=scrna_data6)
+
+scrna_data7 <- read.table(
+  gzfile("Morphine 3/GSM3351260_NAcc_Morphine3.txt.gz"),
+  row.names = 1,
+  header = T)
+seob_morphine3 <- CreateSeuratObject(counts=scrna_data7)
+
+scrna_data8 <- read.table(
+  gzfile("Morphine 4/GSM3351261_NAcc_Morphine4.txt.gz"),
+  row.names = 1,
+  header = T)
+seob_morphine4 <- CreateSeuratObject(counts=scrna_data8)
+
+seob_list<-c(seob_mock1, seob_mock2, seob_mock3, seob_mock4, seob_morphine1, seob_morphine2, seob_morphine3, seob_morphine4)
+```
+
+```{0429}
+#naming seob in lists
+seob_mock1[['sample']]<- "mock1"
+seob_mock2[['sample']]<- "mock2"
+seob_mock3[['sample']]<- "mock3"
+seob_mock4[['sample']]<- "mock4"
+seob_morphine1[['sample']]<- "morphine1"
+seob_morphine2[['sample']]<- "morphine2"
+seob_morphine3[['sample']]<- "morphine3"
+seob_morphine4[['sample']]<- "morphine4"
+
+#making list for mock and morphine group
+seob_mock_list=list(seob_mock1, seob_mock2, seob_mock3, seob_mock4)
+names(seob_mock_list)<-c("mock1", "mock2", "mock3", "mock4")
+
+seob_morphine_list<-list(seob_morphine1, seob_morphine2, seob_morphine3, seob_morphine4)
+names(seob_morphine_list)<-c("morphine1", "morphine2", "morphine3", "morphine4")
+
+names(seob_list)<-c("mock1", "mock2", "mock3", "mock4","morphine1", "morphine2", "morphine3", "morphine4")
+
+#merging mock
+#note: cannot merge directly using "merge" because the cell numbers and gene features are different
+#Merge with normalization
+
+merge_mock_seob <-NULL
+
+for(i in 1:(length(names(seob_mock_list))-1)){
+  j=i+1
+  message(paste("Merging with", names(seob_mock_list)[j]))
+  if(i==1){
+    
+    merged_mock_seob<- merge(x=seob_mock_list[[1]],
+                             y=seob_mock_list [-1],
+                             add.cell.ids=names(seob_mock_list))
+  }else{
+    normalize<-ifelse(j==length(names(seob_mock_list)), TRUE, FALSE) #normalize data to fit mock
+    merged_mock_seob <- merge(x = seob_mock_list[[1]],
+                             y = seob_mock_list [-1],
+                             add.cell.ids=names(seob_mock_list),
+                             scale.factor=1e6,
+                             do.scale=F,
+                             do.center=F,
+                             do.normamlize=normalize)
+  }
+  
+  print(table(str_match(rownames(merged_mock_seob@meta.data),pattern="(\\w+)_(\\w+)")[,2]))
+}
+#make sure the for loop ends in "print"
+merged_mock_seob #to check the objects within
+
+#Filtering
+#Step1. add mitochrondrial gene info
+str_subset(rownames(merged_mock_seob),'^mt-') #search and display mitochrondrial gene names in merged objects
+
+merged_mock_seob[["percent.mt"]]<-PercentageFeatureSet(merged_mock_seob, pattern = '^mt-') #calculate the mitochrondrial gene in percetage
+
+merged_mock_seob<-subset(merged_mock_seob,
+                         subset = nFeature_RNA > 50 & #only keep cells with features larger than 50 and less than 10% mt genes
+                           percent.mt <10)
+
+#Violin Plot: for gauging distribution
+VlnPlot(merged_mock_seob, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"))
+
+#merging morphine
+
+merge_morphine_seob <-NULL
+
+for(i in 1:(length(names(seob_morphine_list))-1)){
+  j=i+1
+  message(paste("Merging with", names(seob_morphine_list)[j]))
+  if(i==1){
+    
+    merged_morphine_seob<- merge(x=seob_morphine_list[[1]],
+                             y=seob_morphine_list [-1],
+                             add.cell.ids=names(seob_morphine_list))
+  }else{
+    normalize<-ifelse(j==length(names(seob_morphine_list)), TRUE, FALSE) #normalize data to fit mock
+    merged_morphine_seob <- merge(x = seob_morphine_list[[1]],
+                             y = seob_morphine_list [-1],
+                             add.cell.ids=names(seob_morphine_list),
+                             scale.factor=1e6,
+                             do.scale=F,
+                             do.center=F,
+                             do.normamlize=normalize)
+  }
+  
+  print(table(str_match(rownames(merged_morphine_seob@meta.data),pattern="(\\w+)_(\\w+)")[,2]))
+} #make sure the for loop ends in "print"
+
+merged_morphine_seob #to check the objects within
+
+#Filtering morphine
+#Step1. add mitochondrial gene info
+str_subset(rownames(merged_morphine_seob),'^mt-') #search and display mitochrondrial gene names in merged objects
+
+merged_morphine_seob[["percent.mt"]]<-PercentageFeatureSet(merged_morphine_seob, pattern = '^mt-') #calculate the mitochondrial gene in percentage
+
+merged_morphine_seob<-subset(merged_morphine_seob,
+                         subset = nFeature_RNA > 50 & #only keep cells with features larger than 50 and less than 10% mt genes
+                           percent.mt <10)
+
+#Violin Plot: for gauging distribution
+VlnPlot(merged_morphine_seob, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"))
+
+
+#Preprocessing
+#1 SCTransform
+mock_morphine_list <-list(merged_mock_seob, merged_morphine_seob)
+
+for(i in 1: length(mock_morphine_list)){
+  mock_morphine_list[[i]] <- SCTransform(
+    mock_morphine_list[[i]],
+    variable.features.n = 3000, #cut off for variable features (top 3000 genes that have the highest variability)
+    vars.to.regress = c("percent.mt"), #exclude percent.mt from regression factors
+    verbose = FALSE)
+}
+
+features <- SelectIntegrationFeatures(object.list = mock_morphine_list,
+                                      nfeatures = 3000) #to pick out the main genes with high variability
+
+names(mock_morphine_list)<-c("mock", "morphine")
+
+#prep integration
+mock_morphine_list<- PrepSCTIntegration(object.list = mock_morphine_list,
+                                        anchor.features = features)
+
+#finding anchors
+anchors <- FindIntegrationAnchors(object.list = mock_morphine_list,
+                                  #reference = 1# set 1 as reference
+                                  normalization.method= "SCT",
+                                  anchor.features=features)
+
+#Final integration
+mock_morphine_intg <- IntegrateData(anchorset = anchors,
+                                    normalization.method ="SCT")
+DefaultAssay(mock_morphine_intg)<-"integrated"
+
+##save the data
+save(mock_morphine_intg, file = "Morpheus/mock_morphine_intg.rdata")
+save(mock_morphine_intg, file = "R studio data/mock_morphine_intg.rdata")
+```
+
+```{0505 - Dimension reduction + cell clustering}
+
+library(SeuratObject)
+library(patchwork)
+library(Seurat)
+library(SummarizedExperiment)
+load(file="Morpheus/mock_morphine_intg.rdata")
+
+#PCA and elbow plot
+
+mock_morphine_intg <-RunPCA(mock_morphine_intg)
+ElbowPlot(mock_morphine_intg,ndims=30)#PCs beyond 15 is accounted for negligible variance
+ElbowPlot(mock_morphine_intg, ndims=15) 
+
+#add new column to flag mock and morphine treatment
+treatment_group <- c("mock1"="mock",
+                     "mock2"="mock",
+                     "mock3"="mock",
+                     "mock4"="mock",
+                     "morphine1"="morphine",
+                     "morphine2"="morphine",
+                     "morphine3"="morphine",
+                     "morphine4"="morphine")
+mock_morphine_intg[['treatment']]=mock_morphine_intg@meta.data$sample
+mock_morphine_intg[['treatment']]=unname(treatment_group[mock_morphine_intg@meta.data$treatment])
+
+#visualization
+DimPlot(mock_morphine_intg, group.by = "treatment",
+        reduction = "pca")
+DimHeatmap(mock_morphine_intg, dims = 1:15, cells = 500, balanced = TRUE)
+
+#DimHeatmap provides easy exploration of the primary locations of heterogeneity in the dataset and can be useful
+
+#TSNE
+mock_morphine_intg <- RunTSNE(mock_morphine_intg, dims = 1:15)
+DimPlot(mock_morphine_intg, group.by ="treatment",
+        reduction = "tsne")
+
+#UMAP
+mock_morphine_intg <- RunUMAP(mock_morphine_intg, dims = 1:15)
+DimPlot(mock_morphine_intg, group.by="treatment",
+        reduction = "umap") #good sign-> good overlapping between two groups
+
+#clustering 
+mock_morphine_intg<-FindNeighbors(mock_morphine_intg)
+mock_morphine_intg<-FindClusters(mock_morphine_intg, 
+                                 resolution=0.3, #larger resolution=more clusters
+                                 random.seed = 1) #Broad clustering over all features: if cells are expressing common cell markers, they will probably be classified to the same cell cluster. 
+
+p1<-DimPlot(mock_morphine_intg, #visualization
+            reduction = "tsne", #select one from pca, umap, tsne
+            group.by = "seurat_clusters", #load clusters
+            label=T)
+p1
+
+#dot plot for cell markers
+markers <-c("Snap25", "Drd1a", "Adora2a", "Resp18",
+            "Top2a", "Gja1", "C1qa", "Cldn5", "Mog", "Pdgfra")
+markers
+
+p2<-DotPlot(object=mock_morphine_intg, features = markers)+
+  theme(axis.text = element_text(size = 8,
+                                 angle= 90,
+                                 hjust= 1))
+p2
+
+#Combine clusters by cell markers+cell marker expression. Which cluster corresponds to which marker? Which cluster is which cell type?
+
+cluster2type<-c(
+  "0"="Drd1",  "1"="Drd2", "2"="Oligo", "3"="IN", "4"="Astro", "5"="OPC", "6"="Endo", "7"="Drd1", "8"="IN", "9"="Micro","10"="NB", "11"="DD", "12"="Astro", "13"="DD", "14"="DD"
+)
+
+mock_morphine_intg[['cell_type']]=unname(cluster2type[mock_morphine_intg@meta.data$seurat_clusters])
+
+#Remove double droplets (DD)
+Idents(objects=mock_morphine_intg)<- "cell_type"
+mock_morphine_intg<-subset(x=mock_morphine_intg, idents= c("DD"), invert=TRUE) #invert: instead of keeping the DD, it is inverted to exclude the DD
+```
+
+```{0520: filter added}
+
+neurons_touse = rownames(subset(mock_morphine_intg@meta.data, cell_type %in% c("Drd1","Drd2","IN","NB") & nCount_RNA >=1500)) #condition 1: part of mock_morphine_intg metadata drd1 etc. condition 2: nCount_RNA>=1500
+NonNeurons_touse = rownames(subset(mock_morphine_intg@meta.data, !cell_type %in% c("Drd1","Drd2","IN","NB") & nCount_RNA >=800))
+
+mock_morphine_intg[['newid']]=colnames(x = mock_morphine_intg)
+Idents(object = mock_morphine_intg) <- "newid"
+#new column: cell id for sorting or selecting cells
+
+mock_morphine_intg_filtered = subset(x=mock_morphine_intg,idents = c(neurons_touse,NonNeurons_touse))
+
+
+save(mock_morphine_intg_filtered,file = "mock_morphine_filtered.RData")
+
+```
+
+```{cont. 0506}
+
+#Plot by cell_type
+p3 <-DimPlot(mock_morphine_intg_filtered,
+             reduction ="umap", 
+             group.by = "cell_type", 
+             label = T)
+p3
+p4 <- DimPlot(mock_morphine_intg_filtered, 
+              reduction = "tsne", 
+              group.by = "cell_type", 
+              label = T)
+p4
+p3+p4
+
+
+#Display markers in each cell type
+Idents(object = mock_morphine_intg_filtered) <- "cell_type"
+
+FeaturePlot(object= mock_morphine_intg_filtered, c("Snap25", "Drd1a", "Adora2a", "Resp18",
+            "Top2a", "Gja1", "C1qa", "Cldn5", "Mog", "Pdgfra"), 
+            pt.size=1) #to verify that one cell marker is exclusively expressed in one cell type, shows where the cell marker is enriched on the plot
+
+#stacked violin plot
+library(ggplot2)
+library(cowplot)
+
+#mock_morphine_intg_filtered$newid<-NULL
+
+features <- c("Snap25", "Drd1a", "Adora2a", "Resp18",
+            "Top2a", "Gja1", "C1qa", "Cldn5", "Mog", "Pdgfra")
+
+p5<-VlnPlot(mock_morphine_intg_filtered, features = c("Snap25","Drd1a","Adora2a","Resp18",
+              "Top2a","Gja1","C1qa","Cldn5","Mog","Pdgfra"),stack = TRUE, sort = TRUE)+
+  theme(legend.position = "none") + ggtitle("Identity on x-axis")
+p5
+
+p6<-VlnPlot(mock_morphine_intg_filtered, features=c("Snap25","Drd1a","Adora2a","Resp18",
+              "Top2a","Gja1","C1qa","Cldn5","Mog","Pdgfra"), stack = TRUE, sort = TRUE, flip = TRUE) +
+  theme(legend.position = "none") + ggtitle("Identity on x-axis")
+p6
+
+p5+p6
+
+#plot genes of interests
+
+```
+
+```{0520-downstream}
+#in all cells, check all gene names
+gene_List <-rownames(mock_morphine_intg_filtered)
+gene_List
+gene_table <- data.frame (gene_List)
+gene_table
+write.csv(gene_table, file = "gene_table.csv", row.names = FALSE) #open in excel to see which ones are in the list
+
+Idents(object = mock_morphine_intg_filtered) <- "cell_type"
+
+features1<-c("Fosb", "Creb3l4", "Bdnf", "Npy", "Cdk5rap2", "Pdyn",
+             "Gria2", "Grin3a", "Grin2c", "Grik1", "Crh", "Crhbp")
+
+VlnPlot(mock_morphine_intg_filtered, features = c("Fosb", "Creb3l4", "Bdnf", "Npy", "Cdk5rap2", "Pdyn","Gria2", "Grin3a", "Grin2c", "Grik1", "Crh", "Crhbp"), stack = TRUE, sort=TRUE, flip=TRUE)+theme(legend.position ="none")+ggtitle("Identity on x-axis")
+
+#unstacked vln plot
+VlnPlot(mock_morphine_intg_filtered, features = c("Fosb", "Creb3l4", "Bdnf", "Npy", "Cdk5rap2", "Pdyn","Gria2", "Grin3a", "Grin2c", "Grik1", "Crh", "Crhbp"), pt.size = 0.01, sort=TRUE, , idents=NULL, flip=TRUE)+theme(legend.position ="none")
+
+VlnPlot(mock_morphine_intg_filtered, features = c("Fosb", "Creb3l4", "Bdnf", "Npy", "Cdk5rap2", "Pdyn",
+             "Gria2", "Grin3a", "Grin2c", "Grik1", "Crh", "Crhbp"), stack = TRUE, sort=TRUE)+theme(legend.position = "none")+ggtitle("Identity on y-axis")
+
+
+FeaturePlot(mock_morphine_intg_filtered, c("Fosb", "Creb3l4", "Bdnf", "Npy"))
+FeaturePlot(mock_morphine_intg_filtered, c( "Cdk5rap2", "Pdyn",
+             "Gria2", "Grin3a"))
+FeaturePlot(mock_morphine_intg_filtered, c( "Grin2c", "Grik1", "Crh", "Crhbp"))
+
+
+p9<- DotPlot(object=mock_morphine_intg_filtered, features=features1)+theme(axis.text=element_text(size = 12,
+                                                                                                  angle=90,
+                                                                                                  hjust=1,))
+p9 #confirms whats on feature plot
+
+Idents(object = mock_morphine_intg_filtered) <- "cell_type"
+x1<-c("gray","blue")
+x2<-c("pink","red")
+panel<-data.frame(x1,x2)
+p9.1<-DotPlot(object=mock_morphine_intg_filtered, features = features1, split.by = "treatment", cols = panel) + theme(axis.text.x = element_text(angle=90, size = 10.5,vjust=0.5,
+     hjust = 0.5))
+
+p9.1 #Compares differences in genes between mock and morphine
+
+```
+
+```{0520-subset by treatment group}
+
+Idents(object = mock_morphine_intg_filtered) <- "treatment"
+DotPlot(object=mock_morphine_intg_filtered, features = features1) +
+  theme(axis.text = element_text(size = 12,
+                                 angle = 90,
+                                 hjust = 1))
+
+mock_intg_filtered <- subset(x = mock_morphine_intg_filtered, idents = c("mock"))
+morphine_intg_filtered <- subset(x = mock_morphine_intg_filtered, idents = c("morphine"))
+
+Idents(object = mock_intg_filtered) <- "cell_type"
+Idents(object = morphine_intg_filtered) <- "cell_type"
+p10 <- DotPlot(object=mock_intg_filtered, features = features1) +
+  theme(axis.text = element_text(size = 15,
+                                 angle = 90,
+                                 hjust = 1))
+p10
+
+p11 <- DotPlot(object=morphine_intg_filtered, features = features1) +
+  theme(axis.text = element_text(size = 15,
+                                 angle = 90,
+                                 hjust = 1))
+p11
+```
+
+```{0520-differentially expressed genes}
+library(tidyverse)
+library(patchwork)
+library(Seurat)
+library(SummarizedExperiment)
+load("mock_morphine_filtered.RData")
+
+#identify differential expression genes across 2 treatment groups in each cell type
+cell_type_list <- SplitObject(mock_morphine_intg_filtered, split.by = "cell_type")
+View(cell_type_list)
+
+#IN cell type
+cell_type_IN <- cell_type_list$`IN`
+Idents(cell_type_IN) <- cell_type_IN@meta.data$treatment
+
+IN_mock_morphine <- FindAllMarkers(cell_type_IN)
+
+View(IN_mock_morphine)
+head(IN_mock_morphine)
+
+VlnPlot(cell_type_IN, features = c("Samd3","Pf4","Dusp2","Adamts5","H2-Eb1","Blnk"), sort = TRUE)+ theme(legend.position = "none") + ggtitle("Identity on x-axis")
+
+
+p12IN <- DotPlot(cell_type_IN, features = c("Samd3","Pf4","Dusp2","Adamts5","H2-Eb1","Blnk")) +
+    theme(axis.text = element_text(size = 15,
+                                   hjust = 1)
+    )
+p12IN
+
+#Oligo cell type
+cell_type_Oligo <- cell_type_list$`Oligo`
+Idents(cell_type_Oligo) <- cell_type_Oligo@meta.data$treatment
+
+Oligo_mock_morphine <- FindAllMarkers(cell_type_Oligo)
+
+View(Oligo_mock_morphine)
+head(Oligo_mock_morphine)
+
+VlnPlot(cell_type_Oligo, features = c("Srpk3","Defb42","Rhoc","Hes6","Lcp1","Cpxm2"), sort = TRUE)+ theme(legend.position = "none") + ggtitle("Identity on x-axis")
+
+
+p12Oligo <- DotPlot(cell_type_Oligo, features = c("Srpk3","Defb42","Rhoc","Hes6","Lcp1","Cpxm2")) +
+    theme(axis.text = element_text(size = 15,
+                                   hjust = 1)
+    )
+p12Oligo
+
+#Drd1
+cell_type_Drd1 <- cell_type_list$`Drd1`
+Idents(cell_type_Drd1) <- cell_type_Drd1@meta.data$treatment
+
+Drd1_mock_morphine <- FindAllMarkers(cell_type_Drd1)
+head(Drd1_mock_morphine)
+
+VlnPlot(cell_type_Drd1, features = c("Gpr101","Perp","Trhr","Arhgap36","Tec","Il16"), sort = TRUE)+ theme(legend.position = "none") + ggtitle("Identity on x-axis")
+
+p12Drd1 <- DotPlot(cell_type_Drd1, features = c("Gpr101","Perp","Trhr","Arhgap36","Tec","Il16")) +
+    theme(axis.text = element_text(size = 15,
+                                   hjust = 1)
+    )
+p12Drd1
+
+          
+#Endo
+cell_type_Endo <- cell_type_list$`Endo`
+Idents(cell_type_Endo) <- cell_type_Endo@meta.data$treatment
+
+Endo_mock_morphine <- FindAllMarkers(cell_type_Endo)
+head(Endo_mock_morphine)
+
+VlnPlot(cell_type_Endo, features = c("Egflam","Stab1","Itga4","Kcnk6","Rcn3","Alpk1"), sort = TRUE)+ theme(legend.position = "none") + ggtitle("Identity on x-axis")
+
+
+p12Endo <- DotPlot(cell_type_Endo, features = c("Egflam","Stab1","Itga4","Kcnk6","Rcn3","Alpk1")) +
+    theme(axis.text = element_text(size = 15,
+                                   hjust = 1)
+    )
+p12Endo
+
+#Astro
+cell_type_Astro <- cell_type_list$`Astro`
+Idents(cell_type_Astro) <- cell_type_Astro@meta.data$treatment
+
+Astro_mock_morphine <- FindAllMarkers(cell_type_Astro)
+head(Astro_mock_morphine)
+
+VlnPlot(cell_type_Astro, features = c("Pdgfrl","Otx2","Rdh5","Tmem37","4930506M07Rik","Ranbp3l"), sort = TRUE)+ theme(legend.position = "none") + ggtitle("Identity on x-axis")
+
+
+p12Astro <- DotPlot(cell_type_Astro, features = c("Pdgfrl","Otx2","Rdh5","Tmem37","4930506M07Rik","Ranbp3l")) +
+    theme(axis.text = element_text(size = 15,
+                                   hjust = 1)
+    )
+p12Astro
+
+#Micro
+cell_type_Micro <- cell_type_list$`Micro`
+Idents(cell_type_Micro) <- cell_type_Micro@meta.data$treatment
+
+Micro_mock_morphine <- FindAllMarkers(cell_type_Micro)
+head(Micro_mock_morphine)
+
+VlnPlot(cell_type_Micro, features = c("Trim21","Rgl3","Tlr4","Mdfi","Ifi35","Gsx2"), sort = TRUE)+ theme(legend.position = "none") + ggtitle("Identity on x-axis")
+
+
+p12Micro <- DotPlot(cell_type_Micro, features = c("Trim21","Rgl3","Tlr4","Mdfi","Ifi35","Gsx2")) +
+    theme(axis.text = element_text(size = 15,
+                                   hjust = 1)
+    )
+p12Micro
+
+#NB
+cell_type_NB <- cell_type_list$`NB`
+Idents(cell_type_NB) <- cell_type_NB@meta.data$treatment
+
+NB_mock_morphine <- FindAllMarkers(cell_type_NB)
+head(NB_mock_morphine)
+
+VlnPlot(cell_type_NB, features = c("Smoc1","Rcn3","Tnfrsf1a","Stk17b","Gm216","E2f8"), sort = TRUE)+ theme(legend.position = "none") + ggtitle("Identity on x-axis")
+
+
+p12NB <- DotPlot(cell_type_NB, features = c("Smoc1","Rcn3","Tnfrsf1a","Stk17b","Gm216","E2f8")) +
+    theme(axis.text = element_text(size = 15,
+                                   hjust = 1)
+    )
+p12NB
+
+#OPC
+cell_type_OPC <- cell_type_list$`OPC`
+Idents(cell_type_OPC) <- cell_type_OPC@meta.data$treatment
+
+OPC_mock_morphine <- FindAllMarkers(cell_type_OPC)
+head(OPC_mock_morphine)
+
+VlnPlot(cell_type_OPC, features = c("Pgf","Gpr179","Gm26512","Ttll3","Rgl3","Casp1"), sort = TRUE)+ theme(legend.position = "none") + ggtitle("Identity on x-axis")
+
+
+p12OPC <- DotPlot(cell_type_OPC, features = c("Pgf","Gpr179","Gm26512","Ttll3","Rgl3","Casp1")) +
+    theme(axis.text = element_text(size = 15,
+                                   hjust = 1)
+    )
+p12OPC
+
+#Drd2
+cell_type_Drd2 <- cell_type_list$`Drd2`
+Idents(cell_type_Drd2) <- cell_type_Drd2@meta.data$treatment
+
+Drd2_mock_morphine <- FindAllMarkers(cell_type_Drd2)
+head(Drd2_mock_morphine)
+
+VlnPlot(cell_type_Drd2, features = c("Fbln5","Cenph","H2-DMb1","Jag1","Gpr101","Gm26735"), sort = TRUE)+ theme(legend.position = "none") + ggtitle("Identity on x-axis")
+
+
+p12Drd2 <- DotPlot(cell_type_Drd2, features = c("Fbln5","Cenph","H2-DMb1","Jag1","Gpr101","Gm26735")) +
+    theme(axis.text = element_text(size = 15,
+                                   hjust = 1)
+    )
+p12Drd2
+    
